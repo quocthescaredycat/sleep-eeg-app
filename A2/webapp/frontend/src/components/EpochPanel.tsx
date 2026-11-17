@@ -109,7 +109,10 @@ export function EpochPanel(props: Props) {
       </p>
       <div className="mt-3 grid gap-6 lg:grid-cols-[2fr_1fr]">
         {epoch ? (
-          <WaveformChart epoch={epoch} />
+          <WaveformChart
+            waveform={epoch}
+            label={`Filtered EEG waveform of epoch ${epoch.epoch_index}`}
+          />
         ) : (
           <p className="h-72 text-sm text-slate-500">Loading waveform…</p>
         )}

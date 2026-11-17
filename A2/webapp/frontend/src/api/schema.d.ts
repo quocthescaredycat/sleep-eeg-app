@@ -124,6 +124,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Library
+         * @description The reference library, whether this server can search it, and how each space scored
+         *     in the library evaluation. Always ``200``: ``available`` and ``code`` say what is missing.
+         */
+        get: operations["library-read_library"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/library/epochs/{library_epoch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Library Epoch
+         * @description One library epoch: expert stage, out-of-fold model stages and 30 s of filtered EEG at
+         *     100 Hz in microvolts, exactly as the models saw it.
+         */
+        get: operations["library-read_library_epoch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/models": {
         parameters: {
             query?: never;
@@ -212,6 +254,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/recordings/{recording_id}/epochs/{epoch_index}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find Similar
+         * @description The ``k`` library epochs nearest to one epoch of this recording, in one space.
+         *
+         *     A model space compares the features that model's fold saved with this recording's
+         *     result, so the model must have been run here; the signal space needs only the
+         *     preprocessing done by the first job. When the recording is itself a library night,
+         *     neighbours from its participant are left out: they would include the epoch itself.
+         */
+        get: operations["library-find_similar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -255,6 +322,13 @@ export interface components {
             recall: number | null;
             /** Support */
             support: number;
+        };
+        /** Consensus */
+        Consensus: {
+            /** Accuracy */
+            accuracy: number;
+            /** Coverage */
+            coverage: number;
         };
         /** EpochChannel */
         EpochChannel: {
@@ -349,6 +423,119 @@ export interface components {
              * @enum {string}
              */
             status: "queued" | "running" | "succeeded" | "failed";
+        };
+        /**
+         * LibraryEpochPublic
+         * @description One expert-scored library epoch. Model stages are out of fold: predicted by a fold
+         *     that did not train on the epoch's participant (the five-fold mean for test ones).
+         */
+        LibraryEpochPublic: {
+            /** Attnsleep Confidence */
+            attnsleep_confidence: number;
+            /** Attnsleep Stage */
+            attnsleep_stage: number;
+            /** Epoch Index */
+            epoch_index: number;
+            /** Id */
+            id: number;
+            /**
+             * In Embedding Training
+             * @description The fold that produced the model-space vectors trained on this epoch.
+             */
+            in_embedding_training: boolean;
+            /** Onset Seconds */
+            onset_seconds: number;
+            /** Participant */
+            participant: string;
+            /** Recording */
+            recording: string;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "development" | "test";
+            /** Stage */
+            stage: number;
+            /** Transformer Confidence */
+            transformer_confidence: number;
+            /** Transformer Stage */
+            transformer_stage: number;
+        };
+        /** LibraryEpochWaveform */
+        LibraryEpochWaveform: {
+            /** Attnsleep Confidence */
+            attnsleep_confidence: number;
+            /** Attnsleep Stage */
+            attnsleep_stage: number;
+            /** Channels */
+            channels: components["schemas"]["EpochChannel"][];
+            /** Epoch Index */
+            epoch_index: number;
+            /** Id */
+            id: number;
+            /**
+             * In Embedding Training
+             * @description The fold that produced the model-space vectors trained on this epoch.
+             */
+            in_embedding_training: boolean;
+            /** Onset Seconds */
+            onset_seconds: number;
+            /** Participant */
+            participant: string;
+            /** Recording */
+            recording: string;
+            /** Sampling Rate */
+            sampling_rate: number;
+            /**
+             * Split
+             * @enum {string}
+             */
+            split: "development" | "test";
+            /** Stage */
+            stage: number;
+            /** Transformer Confidence */
+            transformer_confidence: number;
+            /** Transformer Stage */
+            transformer_stage: number;
+            /** Unit */
+            unit: string;
+        };
+        /** LibraryMatchPublic */
+        LibraryMatchPublic: {
+            /** Epoch Offset */
+            epoch_offset: number;
+            /** Participant */
+            participant: string;
+            /** Recording */
+            recording: string;
+        };
+        /**
+         * LibraryPublic
+         * @description The reference library, and whether this server can search it.
+         */
+        LibraryPublic: {
+            /** Available */
+            available: boolean;
+            /** Code */
+            code: string | null;
+            /** Fold */
+            fold: number | null;
+            /** Library Id */
+            library_id: string | null;
+            /** Message */
+            message: string | null;
+            /** N Epochs */
+            n_epochs: number | null;
+            /** N Participants */
+            n_participants: number | null;
+            /** N Recordings */
+            n_recordings: number | null;
+            /** Spaces */
+            spaces: components["schemas"]["SimilaritySpacePublic"][];
+            /** Synthetic */
+            synthetic: boolean;
+            /** @description Library evaluation: queries where every space's vote agrees. */
+            unanimous: components["schemas"]["Consensus"] | null;
         };
         /** MetricsPublic */
         MetricsPublic: {
@@ -471,6 +658,112 @@ export interface components {
             /** Data */
             data: components["schemas"]["RecordingPublic"][];
         };
+        /** SimilarNeighbour */
+        SimilarNeighbour: {
+            epoch: components["schemas"]["LibraryEpochPublic"];
+            /** Rank */
+            rank: number;
+            /** Score */
+            score: number;
+        };
+        /** SimilarPublic */
+        SimilarPublic: {
+            /** Epoch Index */
+            epoch_index: number;
+            /** Excluded Participant */
+            excluded_participant: string | null;
+            /** K */
+            k: number;
+            /** Library Id */
+            library_id: string;
+            /** @description Set when this recording is itself a library night. */
+            library_match: components["schemas"]["LibraryMatchPublic"] | null;
+            /** Neighbours */
+            neighbours: components["schemas"]["SimilarNeighbour"][];
+            /**
+             * Recording Id
+             * Format: uuid
+             */
+            recording_id: string;
+            /**
+             * Score
+             * @description cosine_similarity: higher is closer; euclidean_distance: lower is closer.
+             * @enum {string}
+             */
+            score: "cosine_similarity" | "euclidean_distance";
+            /**
+             * Space
+             * @enum {string}
+             */
+            space: "transformer" | "attnsleep" | "signal";
+            /** @description Majority expert stage of the neighbours; ties go to the nearest. */
+            vote: components["schemas"]["Vote"] | null;
+        };
+        /** SimilaritySpacePublic */
+        SimilaritySpacePublic: {
+            /** Available */
+            available: boolean;
+            evaluation: components["schemas"]["SpaceEvaluation"] | null;
+            /** Label */
+            label: string;
+            /**
+             * Model Id
+             * @description Model whose features span the space; null for the model-free signal space.
+             */
+            model_id: string | null;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "transformer" | "attnsleep" | "signal";
+            /** Reason */
+            reason: string | null;
+            /**
+             * Score
+             * @enum {string}
+             */
+            score: "cosine_similarity" | "euclidean_distance";
+        };
+        /**
+         * SpaceDisagreement
+         * @description Library evaluation, on query epochs where the two fold models disagree.
+         */
+        SpaceDisagreement: {
+            /** Matches Expert */
+            matches_expert: number;
+            /** N Epochs */
+            n_epochs: number;
+            /**
+             * Sides With
+             * @description Model space name -> share of 5-NN votes equal to that model's stage.
+             */
+            sides_with: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * SpaceEvaluation
+         * @description What ``scripts/evaluate_library.py`` measured for a space on epochs its fold never
+         *     trained on, neighbours from the query's participant excluded.
+         */
+        SpaceEvaluation: {
+            disagreement: components["schemas"]["SpaceDisagreement"] | null;
+            /** K */
+            k: number;
+            /** N Queries */
+            n_queries: number;
+            /** Precision At K */
+            precision_at_k: number;
+            /** Vote Accuracy */
+            vote_accuracy: number;
+            /** Vote Macro F1 */
+            vote_macro_f1: number;
+            /**
+             * Vote Precision
+             * @description By stage index: how often a vote for that stage matches the expert.
+             */
+            vote_precision: (number | null)[];
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -483,6 +776,13 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** Vote */
+        Vote: {
+            /** Count */
+            count: number;
+            /** Stage */
+            stage: number;
         };
     };
     responses: never;
@@ -675,6 +975,57 @@ export interface operations {
             };
         };
     };
+    "library-read_library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryPublic"];
+                };
+            };
+        };
+    };
+    "library-read_library_epoch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                library_epoch_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryEpochWaveform"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     "models-list_models": {
         parameters: {
             query?: never;
@@ -834,6 +1185,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EpochPublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    "library-find_similar": {
+        parameters: {
+            query: {
+                space: "transformer" | "attnsleep" | "signal";
+                k?: number;
+            };
+            header?: never;
+            path: {
+                recording_id: string;
+                epoch_index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilarPublic"];
                 };
             };
             /** @description Validation Error */

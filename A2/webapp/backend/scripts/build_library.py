@@ -4,6 +4,7 @@
     python scripts/build_library.py index [--recreate]   # Qdrant collection from the files
     python scripts/build_library.py load-db              # library_epochs table (PostgreSQL)
     python scripts/build_library.py verify               # files, Qdrant and PostgreSQL agree
+    python scripts/build_library.py synthetic --dir DIR  # tiny library for tests and CI
 
 ``extract`` runs the serving code path on every night: ``preprocess_recording`` for the
 signal and ``parse_hypnogram`` for the expert stages. It stops unless the benchmark epochs
@@ -48,6 +49,9 @@ from app.ml.signal_features import (  # noqa: E402
 from app.services.edf import parse_hypnogram  # noqa: E402
 
 DISPLAY_SAMPLES = EPOCH_SECONDS * 100  # the 100 Hz display waveform of one epoch
+SAMPLE_PSG = BACKEND / "samples" / "SC4031-excerpt-PSG.edf"
+SAMPLE_HYPNOGRAM = BACKEND / "samples" / "SC4031-excerpt-Hypnogram.edf"
+SAMPLE_FIRST_EPOCH = 980  # scripts/make_sample.py cuts SC4031 at 29,400 s
 LABEL_COLUMNS = {"participant", "recording", "onset", "label", "split", "validation_fold"}
 
 
@@ -96,8 +100,6 @@ def _init_worker(checkpoints_dir: str) -> None:
 
 def extract_night(recording: str, psg: str, hypnogram: str, rows: list[dict], fold: int,
                   parts: str) -> dict:
-    from app.ml.embeddings import embed_and_classify
-
     started = time.perf_counter()
     prepared = preprocess_recording(psg)
     stages = parse_hypnogram(Path(hypnogram), prepared.n_epochs)
@@ -113,15 +115,25 @@ def extract_night(recording: str, psg: str, hypnogram: str, rows: list[dict], fo
                           f"first at epoch {wrong[0]}.")
 
     index = np.asarray(expected)
-    epochs = prepared.epochs[index]
     display = prepared.display_waveform()[:, :prepared.n_epochs * DISPLAY_SAMPLES]
     waveforms = display.reshape(2, prepared.n_epochs, DISPLAY_SAMPLES).transpose(1, 0, 2)
-    waveforms = waveforms[index].astype(np.float16)
+    write_part(Path(parts), recording, rows, prepared.epochs[index], waveforms[index], _MODELS,
+               fold)
+    return {"recording": recording, "epochs": len(index),
+            "seconds": time.perf_counter() - started}
+
+
+def write_part(parts: Path, recording: str, rows: list[dict], epochs: np.ndarray,
+               waveforms: np.ndarray, ensembles: dict[str, list], fold: int) -> None:
+    """One night's library arrays: what ``assemble`` concatenates."""
+    from app.ml.embeddings import embed_and_classify
+
+    waveforms = waveforms.astype(np.float16)
     if not np.isfinite(waveforms).all():
         raise ParityError(f"{recording}: display waveform overflows float16.")
     arrays = {"ids": np.array([row["id"] for row in rows], dtype=np.int64),
               "waveforms": waveforms, "signal": signal_features(epochs)}
-    for space, models in _MODELS.items():
+    for space, models in ensembles.items():
         probabilities = []
         for number, model in enumerate(models, start=1):
             features, probs = embed_and_classify(model, epochs)
@@ -129,15 +141,12 @@ def extract_night(recording: str, psg: str, hypnogram: str, rows: list[dict], fo
             if number == fold:
                 arrays[f"vectors_{space}"] = features
         arrays[f"probabilities_{space}"] = np.stack(probabilities)
-
-    partial = Path(parts) / f"{recording}.partial.npz"
+    partial = parts / f"{recording}.partial.npz"
     np.savez(partial, **arrays)
-    partial.replace(Path(parts) / f"{recording}.npz")
-    return {"recording": recording, "epochs": len(index),
-            "seconds": time.perf_counter() - started}
+    partial.replace(parts / f"{recording}.npz")
 
 
-def check_releases(checkpoints: Path, fold: int) -> dict:
+def check_releases(checkpoints: Path, fold: int, *, synthetic: bool = False) -> dict:
     releases = load_releases(checkpoints)
     summary = {}
     for space in store.MODEL_SPACES:
@@ -145,7 +154,7 @@ def check_releases(checkpoints: Path, fold: int) -> dict:
         if release is None or not release.available:
             raise SystemExit(f"{store.SPACES[space].release} is not installed in {checkpoints} "
                              "(scripts/checkpoints.py package).")
-        if release.synthetic:
+        if release.synthetic and not synthetic:
             raise SystemExit(f"{release.id} has synthetic weights: a library needs trained ones.")
         if release.preprocessing.get("version") != PREPROCESSING_VERSION:
             raise SystemExit(f"{release.id} was trained with another preprocessing version.")
@@ -194,14 +203,14 @@ def extract(args: argparse.Namespace) -> int:
             except BaseException:
                 pool.shutdown(cancel_futures=True)
                 raise
-    assemble(args, nights, releases, time.perf_counter() - started)
+    assemble(args, nights, releases, time.perf_counter() - started, labels=args.labels)
     if not args.keep_parts:
         shutil.rmtree(parts)
     return 0
 
 
 def assemble(args: argparse.Namespace, nights: dict[str, list[dict]], releases: dict,
-             seconds: float) -> None:
+             seconds: float, *, labels: Path, synthetic: bool = False) -> None:
     """Concatenate the per-night parts into the library files, in label-file order."""
     rows = [row for night in nights.values() for row in night]
     count = len(rows)
@@ -248,7 +257,8 @@ def assemble(args: argparse.Namespace, nights: dict[str, list[dict]], releases: 
                  for row in rows)
     files = ["epochs.csv", "probabilities.npz", *(name for _, _, name in shapes.values())]
     manifest = {
-        "library_id": store.LIBRARY_ID,
+        "library_id": store.SYNTHETIC_LIBRARY_ID if synthetic else store.LIBRARY_ID,
+        "synthetic": synthetic,
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "fold": args.fold,
         "n_epochs": count,
@@ -265,7 +275,7 @@ def assemble(args: argparse.Namespace, nights: dict[str, list[dict]], releases: 
                           "release": space.release, "file": space.file}
                    for name, space in store.SPACES.items()},
         "releases": releases,
-        "labels": {"file": args.labels.name, "sha256": sha256(args.labels)},
+        "labels": {"file": labels.name, "sha256": sha256(labels)},
         "files": {name: {"bytes": (args.dir / name).stat().st_size,
                          "sha256": sha256(args.dir / name)} for name in files},
         "build": {"processes": args.workers, "extract_seconds": round(seconds, 1),
@@ -278,9 +288,19 @@ def assemble(args: argparse.Namespace, nights: dict[str, list[dict]], releases: 
 
 # --- index, load-db, verify ---
 
-def connect():
+def connect(wait_seconds: float = 30):
+    """The configured Qdrant, waiting a little for a container that is still starting."""
     settings = get_settings()
-    return store.connect(settings.QDRANT_URL, settings.QDRANT_GRPC_PORT)
+    client = store.connect(settings.QDRANT_URL, settings.QDRANT_GRPC_PORT)
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        try:
+            client.get_collections()
+            return client
+        except Exception:
+            if time.monotonic() > deadline:
+                raise SystemExit(f"Qdrant is not reachable at {settings.QDRANT_URL}.") from None
+            time.sleep(1)
 
 
 def wait_until_green(client, name: str, what: str, timeout: float = 3600) -> None:
@@ -299,9 +319,33 @@ def wait_until_green(client, name: str, what: str, timeout: float = 3600) -> Non
         time.sleep(10)
 
 
+def upload_points(client, directory: Path, name: str, *, batch_size: int = 256,
+                  wait: bool = False) -> None:
+    """Upsert every library epoch as one point carrying all named vectors."""
+    from qdrant_client import models
+
+    manifest = store.load_manifest(directory)
+    epochs = store.load_epochs(directory)
+    vectors = {space: np.load(directory / store.SPACES[space].file, mmap_mode="r")
+               for space in store.SPACES}
+    count = manifest["n_epochs"]
+    started = time.perf_counter()
+    for start in range(0, count, batch_size):
+        stop = min(start + batch_size, count)
+        batch = {space: np.asarray(array[start:stop], dtype=np.float32)
+                 for space, array in vectors.items()}
+        batch["signal"] = store.standardize_signal(batch["signal"], manifest)
+        client.upsert(name, wait=wait, points=models.Batch(
+            ids=list(range(start, stop)),
+            vectors={space: array.tolist() for space, array in batch.items()},
+            payloads=[store.payload(epochs, row) for row in range(start, stop)]))
+        if (stop // batch_size) % 40 == 0 or stop == count:
+            print(f"  uploaded {stop}/{count} points "
+                  f"({time.perf_counter() - started:.0f} s)", flush=True)
+
+
 def index(args: argparse.Namespace) -> int:
     manifest = store.load_manifest(args.dir)
-    epochs = store.load_epochs(args.dir)
     name = store.collection_name(manifest)
     client = connect()
     if client.collection_exists(name):
@@ -309,25 +353,8 @@ def index(args: argparse.Namespace) -> int:
             raise SystemExit(f"Collection {name} exists; pass --recreate to rebuild it.")
         client.delete_collection(name)
     store.create_collection(client, name)
-
-    vectors = {space: np.load(args.dir / store.SPACES[space].file, mmap_mode="r")
-               for space in store.SPACES}
-    count = manifest["n_epochs"]
     started = time.perf_counter()
-    from qdrant_client import models
-
-    for start in range(0, count, args.batch_size):
-        stop = min(start + args.batch_size, count)
-        batch = {space: np.asarray(array[start:stop], dtype=np.float32)
-                 for space, array in vectors.items()}
-        batch["signal"] = store.standardize_signal(batch["signal"], manifest)
-        client.upsert(name, wait=False, points=models.Batch(
-            ids=list(range(start, stop)),
-            vectors={space: array.tolist() for space, array in batch.items()},
-            payloads=[store.payload(epochs, row) for row in range(start, stop)]))
-        if (stop // args.batch_size) % 40 == 0 or stop == count:
-            print(f"  uploaded {stop}/{count} points "
-                  f"({time.perf_counter() - started:.0f} s)", flush=True)
+    upload_points(client, args.dir, name, batch_size=args.batch_size)
     wait_until_green(client, name, "upload")
     store.build_hnsw(client, name)
     wait_until_green(client, name, "HNSW build")
@@ -440,6 +467,60 @@ def verify(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def synthetic_nights(epochs: np.ndarray) -> list[tuple[str, str, str, int, int, np.ndarray,
+                                                       np.ndarray]]:
+    """Three pseudo-participants made from the bundled sample, for tests and CI.
+
+    ``(participant, recording, split, validation fold, first epoch index, epochs, source
+    epoch of each epoch)``. The first is the sample itself, stored as night SC4031 from
+    epoch 980 exactly as in the real library, so re-uploading the sample is recognised.
+    The others are a rescaled noisy copy and a copy shifted by seven epochs.
+    """
+    rng = np.random.default_rng(0)
+    order = np.arange(len(epochs))
+    shifted = np.roll(order, -7)
+    noisy = (0.8 * epochs + rng.normal(0, 0.02, epochs.shape)).astype(np.float32)
+    moved = (1.2 * epochs[shifted] + rng.normal(0, 0.03, epochs.shape)).astype(np.float32)
+    return [("SC403", "SC4031", "test", store.TEST_FOLD, SAMPLE_FIRST_EPOCH, epochs, order),
+            ("SX001", "SX0011", "development", 5, 0, noisy, order),
+            ("SX002", "SX0021", "development", 2, 0, moved, shifted)]
+
+
+def synthetic(args: argparse.Namespace) -> int:
+    from app.ml.inference import load_ensemble
+
+    previous = args.dir / "manifest.json"
+    if previous.is_file() and not json.loads(previous.read_text()).get("synthetic"):
+        raise SystemExit(f"{args.dir} holds a real library; choose another --dir.")
+    started = time.perf_counter()
+    releases = check_releases(args.checkpoints, args.fold, synthetic=True)
+    loaded = load_releases(args.checkpoints)
+    ensembles = {space: load_ensemble(loaded[store.SPACES[space].release])
+                 for space in store.MODEL_SPACES}
+    prepared = preprocess_recording(SAMPLE_PSG)
+    stages = parse_hypnogram(SAMPLE_HYPNOGRAM, prepared.n_epochs)
+    parts = args.dir / "parts"
+    parts.mkdir(parents=True, exist_ok=True)
+    nights, next_id = {}, 0
+    for participant, recording, split, fold, first, epochs, source in synthetic_nights(
+            prepared.epochs):
+        keep = np.array([index for index in range(len(epochs)) if int(source[index]) in stages])
+        rows = [{"id": next_id + number, "participant": participant, "recording": recording,
+                 "onset": str((first + int(index)) * EPOCH_SECONDS),
+                 "label": str(stages[int(source[index])][0]), "split": split,
+                 "validation_fold": str(fold)} for number, index in enumerate(keep)]
+        next_id += len(rows)
+        nights[recording] = rows
+        flat = epochs[keep].reshape(len(keep), 2, -1)
+        waveforms = flat[..., ::2] * np.float32(100.0)  # 100 Hz microvolts, as displayed
+        write_part(parts, recording, rows, epochs[keep], waveforms, ensembles, args.fold)
+    args.workers = 1
+    assemble(args, nights, releases, time.perf_counter() - started, labels=SAMPLE_HYPNOGRAM,
+             synthetic=True)
+    shutil.rmtree(parts)
+    return 0
+
+
 def main() -> int:
     settings = get_settings()
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -461,8 +542,16 @@ def main() -> int:
     commands.choices["index"].add_argument("--batch-size", type=int, default=256)
     commands.choices["verify"].add_argument("--hash", action="store_true",
                                             help="also re-hash every file (slow)")
+    synthetic_command = commands.add_parser(
+        "synthetic", help="three-participant library made from the bundled sample, "
+                          "for tests and CI; needs only synthetic checkpoints")
+    synthetic_command.add_argument("--dir", type=Path, required=True)
+    synthetic_command.add_argument("--checkpoints", type=Path, default=settings.CHECKPOINTS_DIR)
+    synthetic_command.add_argument("--fold", type=int, choices=range(1, 6),
+                                   default=settings.EMBEDDING_FOLD)
     args = parser.parse_args()
-    handler = {"extract": extract, "index": index, "load-db": load_db, "verify": verify}
+    handler = {"extract": extract, "index": index, "load-db": load_db, "verify": verify,
+               "synthetic": synthetic}
     return handler[args.command](args)
 
 

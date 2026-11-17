@@ -12,6 +12,7 @@ import { ComparisonPanel } from './ComparisonPanel'
 import { EpochPanel } from './EpochPanel'
 import { ErrorMessage } from './ErrorMessage'
 import { MetricsPanel } from './MetricsPanel'
+import { SimilarPanel } from './SimilarPanel'
 
 /** One finished job with everything needed to draw it. */
 export interface ModelResult {
@@ -28,8 +29,9 @@ interface Props {
 }
 
 /**
- * Everything shown once at least one model has finished. The selected epoch and model live
- * in the URL (`?epoch=120&model=transformer-a2-v1`), so a view can be shared and reloaded.
+ * Everything shown once at least one model has finished. The selected epoch, model and
+ * similarity space live in the URL (`?epoch=120&model=transformer-a2-v1&space=signal`), so a
+ * view can be shared and reloaded.
  */
 export function Results({ recording, finished }: Props) {
   const [params, setParams] = useSearchParams()
@@ -62,6 +64,7 @@ export function Results({ recording, finished }: Props) {
     [setParams],
   )
   const selectEpoch = useCallback((epoch: number) => setParam('epoch', String(epoch)), [setParam])
+  const selectSpace = useCallback((space: string) => setParam('space', space), [setParam])
 
   const reference = results[0]?.predictions.reference_stages ?? null
   const disagreeing = useMemo(
@@ -135,6 +138,14 @@ export function Results({ recording, finished }: Props) {
         epoch={epoch.data}
         onSelect={selectEpoch}
         nextDisagreement={nextAfter(disagreeing, selected)}
+      />
+      <SimilarPanel
+        recordingId={recording.id}
+        results={results}
+        selected={selected}
+        requested={params.get('space')}
+        activeModelId={active.model.id}
+        onSpace={selectSpace}
       />
       <ComparisonPanel results={results} reference={reference} disagreeing={disagreeing} />
       {recording.has_hypnogram && <MetricsPanel results={results} active={active} />}

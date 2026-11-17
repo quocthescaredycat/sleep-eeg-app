@@ -11,9 +11,14 @@ x-backend: &backend
     CHECKPOINTS_DIR: /checkpoints
     RETENTION_DAYS: ${RETENTION_DAYS:-30}
     TORCH_THREADS: ${TORCH_THREADS:-4}
+    # Similarity search: optional. Without the library or Qdrant the API reports it as
+    # unavailable and everything else works.
+    LIBRARY_DIR: /library
+    QDRANT_URL: http://qdrant:6333
   volumes:
     - appdata:/data
     - ${CHECKPOINTS_DIR:-./backend/checkpoints}:/checkpoints:ro
+    - ${LIBRARY_DIR:-./backend/library}:/library:ro
   restart: unless-stopped
 
 services:

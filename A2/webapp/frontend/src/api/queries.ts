@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import type { UseQueryResult } from '@tanstack/react-query'
 
 import { api, unwrap, uploadRecording } from './client'
-import type { Job, MetricsScope, Predictions, Recording } from './client'
+import type { Job, MetricsScope, Predictions, Recording, SpaceName } from './client'
 
 const POLL_MS = 1500
 
@@ -133,5 +133,53 @@ export function useEpoch(recordingId: string, epochIndex: number, enabled: boole
     staleTime: Infinity,
     enabled,
     placeholderData: (previous) => previous,
+  })
+}
+
+/** The reference library and which spaces this server can search. */
+export function useLibrary() {
+  return useQuery({
+    queryKey: ['library'],
+    queryFn: () => unwrap(api.GET('/api/v1/library')),
+    staleTime: 60_000,
+    retry: false,
+  })
+}
+
+/**
+ * Nearest library epochs of one epoch, in each requested space. Results never change for a
+ * given library, so they are cached for the session.
+ */
+export function useSimilar(recordingId: string, epochIndex: number, spaces: SpaceName[]) {
+  return useQueries({
+    queries: spaces.map((space) => ({
+      queryKey: ['similar', recordingId, epochIndex, space],
+      queryFn: () =>
+        unwrap(
+          api.GET('/api/v1/recordings/{recording_id}/epochs/{epoch_index}/similar', {
+            params: {
+              path: { recording_id: recordingId, epoch_index: epochIndex },
+              query: { space },
+            },
+          }),
+        ),
+      staleTime: Infinity,
+      retry: false,
+    })),
+  })
+}
+
+export function useLibraryEpochs(ids: number[]) {
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ['library-epochs', id],
+      queryFn: () =>
+        unwrap(
+          api.GET('/api/v1/library/epochs/{library_epoch_id}', {
+            params: { path: { library_epoch_id: id } },
+          }),
+        ),
+      staleTime: Infinity,
+    })),
   })
 }

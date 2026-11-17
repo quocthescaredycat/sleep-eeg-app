@@ -245,7 +245,8 @@ def test_crash_while_publishing_leaves_no_partial_predictions(client, worker, mo
         job_id = claim_next_job(session)
     monkeypatch.setattr("app.worker.utcnow", lambda: 1 / 0)  # fails after the rows are inserted
     with pytest.raises(ZeroDivisionError):
-        worker.publish(job_id, np.full((120, 5), 0.2, dtype=np.float32))
+        worker.publish(job_id, np.full((120, 5), 0.2, dtype=np.float32),
+                       np.zeros((120, 128), dtype=np.float32))
     monkeypatch.undo()
     with get_sessionmaker()() as session:
         assert session.scalar(select(func.count()).select_from(Prediction)) == 0

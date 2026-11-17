@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -31,6 +32,10 @@ class Settings(BaseSettings):
     LIBRARY_DIR: Path = BACKEND_DIR / "library"
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_GRPC_PORT: int = 6334
+    QDRANT_TIMEOUT_SECONDS: int = 5
+    # The worker saves this fold's features with every result. A library is searchable only
+    # with query vectors from the fold it was built with (build_library.py --fold).
+    EMBEDDING_FOLD: int = Field(5, ge=1, le=5)
 
 
 @lru_cache

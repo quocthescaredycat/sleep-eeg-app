@@ -89,6 +89,10 @@ class Api {
     return recording
   }
 
+  async library(): Promise<{ available: boolean; code: string | null; synthetic: boolean }> {
+    return (await this.request.get('/api/v1/library')).json()
+  }
+
   track(recordingId: string) {
     this.created.push(recordingId)
   }

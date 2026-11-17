@@ -14,6 +14,12 @@ export class RecordingPage {
   readonly previous: Locator
   readonly next: Locator
   readonly nextDisagreement: Locator
+  readonly similarPanel: Locator
+  readonly neighbours: Locator
+  readonly neighbourWaveforms: Locator
+  readonly libraryMatch: Locator
+  readonly similarSummary: Locator
+  readonly similarVotes: Locator
 
   constructor(page: Page) {
     this.page = page
@@ -28,6 +34,12 @@ export class RecordingPage {
     this.previous = page.getByRole('button', { name: '← Previous' })
     this.next = page.getByRole('button', { name: 'Next →' })
     this.nextDisagreement = page.getByRole('button', { name: 'Next disagreement' })
+    this.similarPanel = page.getByTestId('similar-panel')
+    this.neighbours = this.similarPanel.getByTestId('neighbour')
+    this.neighbourWaveforms = this.similarPanel.getByTestId('neighbour-waveform')
+    this.libraryMatch = page.getByTestId('library-match')
+    this.similarSummary = page.getByTestId('similar-summary')
+    this.similarVotes = page.getByTestId('similar-votes')
   }
 
   async goto(recordingId: string, query = '') {
@@ -55,6 +67,18 @@ export class RecordingPage {
 
   modelTab(name: string): Locator {
     return this.page.getByRole('tab', { name })
+  }
+
+  spaceOption(name: string): Locator {
+    return this.page.getByRole('radiogroup', { name: 'Find similar using' }).getByRole('radio', {
+      name,
+    })
+  }
+
+  async neighbourParticipants(): Promise<(string | null)[]> {
+    return this.neighbours.evaluateAll((items) =>
+      items.map((item) => item.getAttribute('data-participant')),
+    )
   }
 
   scope(name: string): Locator {

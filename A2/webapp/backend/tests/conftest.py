@@ -18,6 +18,9 @@ os.environ["DATABASE_URL"] = os.environ.get(
 os.environ["DATA_DIR"] = str(WORKDIR / "data")
 os.environ["CHECKPOINTS_DIR"] = str(WORKDIR / "checkpoints")
 os.environ["SEED_SAMPLE"] = "false"
+# Never touch a real similarity library or Qdrant: tests/api/test_library.py builds its own.
+os.environ["LIBRARY_DIR"] = str(WORKDIR / "library")
+os.environ["QDRANT_URL"] = "http://127.0.0.1:9"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -74,12 +77,16 @@ def environment():
 
 @pytest.fixture(autouse=True)
 def clean_state():
+    from app.api.deps import get_similarity
+
     with get_engine().begin() as connection:
         connection.execute(text("TRUNCATE recordings CASCADE"))
     shutil.rmtree(os.environ["DATA_DIR"], ignore_errors=True)
     get_settings.cache_clear()
+    get_similarity.cache_clear()
     yield
     get_settings.cache_clear()
+    get_similarity.cache_clear()
 
 
 @pytest.fixture

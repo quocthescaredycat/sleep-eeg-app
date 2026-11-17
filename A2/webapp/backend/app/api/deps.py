@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import Settings, get_settings
 from ..core.db import get_db
+from ..library.service import SimilarityService
 from ..ml.registry import ModelRelease, load_releases
 
 
@@ -21,6 +22,12 @@ def get_releases() -> dict[str, ModelRelease]:
     return load_releases(get_settings().CHECKPOINTS_DIR)
 
 
+@lru_cache
+def get_similarity() -> SimilarityService:
+    return SimilarityService(get_settings())
+
+
 SessionDep = Annotated[Session, Depends(get_db)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 ReleasesDep = Annotated[dict[str, ModelRelease], Depends(get_releases)]
+SimilarityDep = Annotated[SimilarityService, Depends(get_similarity)]

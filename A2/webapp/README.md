@@ -20,6 +20,8 @@ flowchart LR
     W[worker: python -m app.worker] --> PG
     W --> FS
     W --> CK[checkpoints, read-only]
+    API -.->|optional| QD[(qdrant: similarity index)]
+    API -.->|optional| LIB[library files, read-only]
 ```
 
 | Part | Stack |
@@ -112,12 +114,14 @@ The last two rows need the trained checkpoints and the original night:
 SLEEP_EDF_DIR=/path/to/sleep-cassette uv run pytest -m published
 ```
 
-## Similarity library (research)
+## Similar epochs (research)
 
-Groundwork for "find similar epochs": a reference library of every expert-scored epoch the
-A2 models were evaluated on (195,469 epochs, 153 Sleep-cassette nights, 78 participants),
-searchable in three spaces so that a researcher can check retrieval against the model that
-shaped it:
+![Similar epochs panel: neighbours in the Transformer space, a vote per space and the bias check](docs/similar.png)
+
+For the selected epoch, the results page lists the nearest expert-scored epochs of a reference
+library: every epoch the A2 models were evaluated on (195,469 epochs, 153 Sleep-cassette
+nights, 78 participants). The researcher picks the space to search in, so retrieval can be
+checked against the model that shaped it:
 
 | Space | Vector | Shaped by |
 |---|---|---|
@@ -128,7 +132,28 @@ shaped it:
 Five folds are five unrelated feature spaces, so one fold (5) spans both model spaces. Qdrant
 holds the vectors as named vectors of one point per epoch (AttnSleep on disk, int8 in RAM) and
 returns ids only; waveforms, expert stages and out-of-fold predictions are looked up by id in
-the library files and the `library_epochs` table. Searches exclude the query's participant.
+the library files and the `library_epochs` table.
+
+Neighbours are evidence to inspect, not a prediction: the expert stage is the reference for
+library epochs only. Each neighbour shows its waveform, expert stage, out-of-fold model stages
+and whether fold 5 trained on it. The panel adds the vote of every space, how often a vote for
+that stage matched the expert in the library evaluation, and the bias check below.
+
+How a search works:
+
+- The worker saves, with every result, the fold-5 features of that model
+  (`features_<model>_fold5.npy`) and the recording's band powers (`signal_features.npy`) next
+  to the upload; at start it adds them to results that predate them. The API never loads
+  PyTorch: it reads these files, asks Qdrant for ids and reads the rest from the library.
+- A model space needs that model to have run on the recording; the signal space needs any job.
+- An upload that is itself a library night (a re-uploaded Sleep-EDF file, or an excerpt cut
+  on the 30 s grid such as the bundled sample) is recognised by band powers identical to a
+  library night at a consistent epoch offset. Its participant is then excluded; otherwise the
+  nearest neighbour would be the epoch itself, expert stage included.
+- Without the library, Qdrant or the table the panel says what is missing and the rest of the
+  app is unaffected.
+
+Build the library once (about 50 minutes on 10 CPU cores), then start Qdrant with the stack:
 
 ```bash
 cd A2/webapp
@@ -141,7 +166,9 @@ uv run python scripts/build_library.py extract \
 uv run python scripts/build_library.py index      # Qdrant collection a2-sleep-edf-v1-fold5
 uv run python scripts/build_library.py load-db    # library_epochs table
 uv run python scripts/build_library.py verify     # files, Qdrant and PostgreSQL agree
-uv run python scripts/evaluate_library.py         # Phase 2 -> backend/library/library_eval.json
+uv run python scripts/evaluate_library.py         # -> backend/library/library_eval.json
+cd ..
+docker compose --profile similarity up -d --build # api mounts LIBRARY_DIR (default backend/library)
 ```
 
 The files (about 4.1 GB) are written to `backend/library/` and ignored by Git, except
@@ -161,6 +188,10 @@ For comparison, the fold-5 classifiers themselves score 0.803 / 0.750 (Transform
 when the two disagree, so retrieval in a model space is not independent evidence; the
 signal space is neutral. When all three votes agree (69% of queries) they match the expert on
 91%. HNSW recall@5 against exact search is 0.998–1.000.
+
+`scripts/build_library.py synthetic --dir DIR` builds a 360-epoch library from the bundled
+sample (the sample as night SC4031, plus two altered copies) with whatever checkpoints are
+installed. The API tests and the CI end-to-end job use it; the UI flags it as synthetic.
 
 ## Development
 
@@ -209,7 +240,11 @@ npm run test:e2e                        # against http://localhost:8080 (Docker 
 E2E_BASE_URL=http://localhost:5173 npm run test:e2e   # against the dev servers
 ```
 
-The backend suite generates synthetic checkpoints, so it does not need the trained weights.
+The backend suite generates synthetic checkpoints, so it does not need the trained weights;
+the similarity tests build a synthetic library and run Qdrant in-process. With the real
+library and checkpoints, `uv run pytest -m published` also checks that the features served
+for the bundled sample equal the library vectors of the same SC4031 epochs. The similarity
+end-to-end tests skip when the stack has no searchable library.
 Playwright keeps a trace, a screenshot and a video for every failing test
 (`npx playwright show-report`).
 
@@ -228,6 +263,9 @@ Playwright keeps a trace, a screenshot and a video for every failing test
 | `GET /api/v1/jobs/{job_id}/predictions` | Stage and five probabilities for every epoch |
 | `GET /api/v1/jobs/{job_id}/metrics?scope=all\|benchmark` | Agreement with the hypnogram |
 | `GET /api/v1/jobs/{job_id}/export?format=csv\|json` | Download |
+| `GET /api/v1/library` | Similarity library, whether it can be searched, per-space evaluation |
+| `GET /api/v1/recordings/{recording_id}/epochs/{epoch_index}/similar?space=…&k=5` | Nearest library epochs in `transformer`, `attnsleep` or `signal` |
+| `GET /api/v1/library/epochs/{library_epoch_id}` | One library epoch with its 30 s waveform |
 | `GET /api/health` | Database reachable, number of runnable models |
 
 Errors use `{"detail": {"code": "EDF_MISSING_CHANNEL", "message": "…"}}`; the frontend and
@@ -247,9 +285,9 @@ webapp/
 │   │   ├── models.py          SQLAlchemy tables
 │   │   ├── schemas.py         Pydantic models
 │   │   ├── core/              settings, database session
-│   │   ├── api/               deps.py, routes/{recordings,jobs,models,health}.py
+│   │   ├── api/               deps.py, routes/{recordings,jobs,models,library,health}.py
 │   │   ├── services/          EDF validation, storage, metrics, exports
-│   │   ├── library/           similarity library: files + Qdrant index, retrieval metrics
+│   │   ├── library/           similarity search: files + Qdrant index, serving, metrics
 │   │   └── ml/                preprocessing, inference, embeddings, signal features, networks/
 │   ├── alembic/               migrations
 │   ├── checkpoints/           manifests (committed) and fold_*.pt (ignored)

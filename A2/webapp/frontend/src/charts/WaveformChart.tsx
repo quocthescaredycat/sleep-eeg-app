@@ -1,9 +1,23 @@
 import { useMemo } from 'react'
 
-import type { Epoch } from '../api/client'
 import { useEChart } from './useEChart'
 
 const COLORS = ['#0f766e', '#7c3aed']
+
+/** Any 30 s window: an uploaded recording's epoch or a library epoch. */
+export interface Waveform {
+  sampling_rate: number
+  channels: { label: string; samples: number[] }[]
+}
+
+interface Props {
+  waveform: Waveform
+  /** Accessible name of the chart. */
+  label: string
+  /** Small, axis-free rendering for thumbnails. */
+  compact?: boolean
+  testId?: string
+}
 
 /** Symmetric y-range in steps of 50 µV, so neighbouring epochs are easy to compare. */
 function amplitudeRange(samples: number[]): number {
@@ -12,22 +26,28 @@ function amplitudeRange(samples: number[]): number {
   return Math.max(50, Math.ceil(peak / 50) * 50)
 }
 
-export function WaveformChart({ epoch }: { epoch: Epoch }) {
+export function WaveformChart({ waveform, label, compact = false, testId = 'waveform-chart' }: Props) {
   const option = useMemo(() => {
-    const tops = ['8%', '54%']
+    const tops = compact ? ['2%', '51%'] : ['8%', '54%']
+    const height = compact ? '47%' : '36%'
     return {
       animation: false,
-      tooltip: { trigger: 'axis', valueFormatter: (value: number) => `${value.toFixed(1)} µV` },
-      grid: tops.map((top) => ({ left: 56, right: 16, top, height: '36%' })),
-      xAxis: epoch.channels.map((_, index) => ({
+      tooltip: compact
+        ? { show: false }
+        : { trigger: 'axis', valueFormatter: (value: number) => `${value.toFixed(1)} µV` },
+      grid: tops.map((top) =>
+        compact ? { left: 4, right: 4, top, height } : { left: 56, right: 16, top, height },
+      ),
+      xAxis: waveform.channels.map((channel, index) => ({
         gridIndex: index,
         type: 'value',
         min: 0,
-        max: epoch.channels[index].samples.length / epoch.sampling_rate,
+        max: channel.samples.length / waveform.sampling_rate,
         interval: 5,
-        axisLabel: { show: index === epoch.channels.length - 1, formatter: '{value} s' },
+        show: !compact,
+        axisLabel: { show: index === waveform.channels.length - 1, formatter: '{value} s' },
       })),
-      yAxis: epoch.channels.map((channel, index) => {
+      yAxis: waveform.channels.map((channel, index) => {
         const range = amplitudeRange(channel.samples)
         return {
           gridIndex: index,
@@ -35,32 +55,34 @@ export function WaveformChart({ epoch }: { epoch: Epoch }) {
           min: -range,
           max: range,
           interval: range,
+          show: !compact,
           name: `${channel.label.replace('EEG ', '')} (µV)`,
           nameLocation: 'middle',
           nameGap: 40,
         }
       }),
-      series: epoch.channels.map((channel, index) => ({
+      series: waveform.channels.map((channel, index) => ({
         name: channel.label,
         type: 'line',
         xAxisIndex: index,
         yAxisIndex: index,
         showSymbol: false,
+        silent: compact,
         sampling: 'lttb',
-        lineStyle: { width: 1, color: COLORS[index % COLORS.length] },
+        lineStyle: { width: compact ? 0.75 : 1, color: COLORS[index % COLORS.length] },
         itemStyle: { color: COLORS[index % COLORS.length] },
-        data: channel.samples.map((value, sample) => [sample / epoch.sampling_rate, value]),
+        data: channel.samples.map((value, sample) => [sample / waveform.sampling_rate, value]),
       })),
     }
-  }, [epoch])
+  }, [waveform, compact])
   const container = useEChart(option)
   return (
     <div
       ref={container}
-      className="h-72 w-full"
+      className={compact ? 'h-24 w-full' : 'h-72 w-full'}
       role="img"
-      aria-label={`Filtered EEG waveform of epoch ${epoch.epoch_index}`}
-      data-testid="waveform-chart"
+      aria-label={label}
+      data-testid={testId}
     />
   )
 }

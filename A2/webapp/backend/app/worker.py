@@ -85,9 +85,11 @@ class Worker:
                 raise JobFailure(error.code, str(error)) from error
         return self.ensembles[model_id]
 
-    def predict(self, job_id: uuid.UUID) -> np.ndarray:
-        from .ml.inference import predict_proba
+    def predict(self, job_id: uuid.UUID) -> tuple[np.ndarray, np.ndarray]:
+        """Return the ensemble probabilities and the similarity features of one fold."""
+        from .ml.inference import predict_and_embed
         from .ml.preprocessing import SignalError, preprocess_recording
+        from .ml.signal_features import signal_features
 
         with self.sessions() as session:
             job = session.get(Job, job_id)
@@ -105,9 +107,10 @@ class Worker:
 
         waveform = storage.waveform_path(recording_id)
         if not waveform.is_file():
-            partial = waveform.with_suffix(".partial.npy")
-            np.save(partial, prepared.display_waveform())
-            partial.replace(waveform)
+            storage.save_array(waveform, prepared.display_waveform())
+        band_power = storage.signal_features_path(recording_id)
+        if not band_power.is_file():
+            storage.save_array(band_power, signal_features(prepared.epochs))
         self.report(job_id, stage="inference", progress=0.1)
         with self.sessions() as session:
             session.execute(update(Recording).where(Recording.id == recording_id)
@@ -122,13 +125,19 @@ class Worker:
                 last_report = time.monotonic()
                 self.report(job_id, progress=0.1 + 0.85 * done / total)
 
-        return predict_proba(models, prepared.epochs, batch_size=self.settings.BATCH_SIZE,
-                             on_progress=on_progress)
+        return predict_and_embed(models, prepared.epochs, embed_fold=self.settings.EMBEDDING_FOLD,
+                                 batch_size=self.settings.BATCH_SIZE, on_progress=on_progress)
 
-    def publish(self, job_id: uuid.UUID, probabilities: np.ndarray) -> None:
-        """Predictions and the ``succeeded`` status commit together or not at all."""
+    def publish(self, job_id: uuid.UUID, probabilities: np.ndarray, features: np.ndarray) -> None:
+        """Predictions and the ``succeeded`` status commit together or not at all.
+
+        The features file is written first, so a succeeded job always has one.
+        """
         stages = probabilities.argmax(axis=1)
         with self.sessions() as session:
+            job = session.get(Job, job_id)
+            storage.save_array(storage.embeddings_path(job.recording_id, job.model_id,
+                                                       self.settings.EMBEDDING_FOLD), features)
             session.execute(insert(Prediction), [
                 {"job_id": job_id, "epoch_index": index, "stage": int(stages[index]),
                  "p_w": float(row[0]), "p_n1": float(row[1]), "p_n2": float(row[2]),
@@ -144,9 +153,9 @@ class Worker:
     def run(self, job_id: uuid.UUID) -> None:
         started = time.perf_counter()
         try:
-            probabilities = self.predict(job_id)
+            probabilities, features = self.predict(job_id)
             self.report(job_id, stage="saving", progress=0.95)
-            self.publish(job_id, probabilities)
+            self.publish(job_id, probabilities, features)
             logger.info("job %s succeeded in %.1f s", job_id, time.perf_counter() - started)
         except Exception as error:
             code = error.code if isinstance(error, JobFailure) else "INTERNAL_ERROR"
@@ -167,6 +176,46 @@ class Worker:
                 return count
             self.run(job_id)
             count += 1
+
+    def backfill_features(self) -> int:
+        """Save similarity features for results that finished before the worker saved them.
+
+        Runs once at startup; returns how many feature files it wrote.
+        """
+        from .ml.embeddings import embed_and_classify
+        from .ml.preprocessing import SignalError, preprocess_recording
+        from .ml.signal_features import signal_features
+
+        fold = self.settings.EMBEDDING_FOLD
+        with self.sessions() as session:
+            finished = session.execute(
+                select(Job.recording_id, Job.model_id).where(Job.status == JobStatus.SUCCEEDED)
+                .order_by(Job.recording_id, Job.created_at)).all()
+        missing: dict[uuid.UUID, list[str]] = {}
+        for recording_id, model_id in finished:
+            models = missing.setdefault(recording_id, [])
+            if not storage.embeddings_path(recording_id, model_id, fold).is_file():
+                models.append(model_id)
+        written = 0
+        for recording_id, model_ids in missing.items():
+            band_power = storage.signal_features_path(recording_id)
+            if band_power.is_file() and not model_ids:
+                continue
+            try:
+                prepared = preprocess_recording(storage.source_path(recording_id))
+                if not band_power.is_file():
+                    storage.save_array(band_power, signal_features(prepared.epochs))
+                    written += 1
+                for model_id in model_ids:
+                    fold_model = self.ensemble(model_id)[fold - 1]
+                    features, _ = embed_and_classify(fold_model, prepared.epochs,
+                                                     batch_size=self.settings.BATCH_SIZE)
+                    storage.save_array(storage.embeddings_path(recording_id, model_id, fold),
+                                       features)
+                    written += 1
+            except (SignalError, JobFailure, OSError) as error:  # deleted or unreadable
+                logger.warning("no similarity features for recording %s: %s", recording_id, error)
+        return written
 
     def purge_expired(self) -> None:
         """Uploads are open to everyone, so they do not live forever."""
@@ -191,8 +240,9 @@ class Worker:
         torch.set_num_threads(self.settings.TORCH_THREADS)
         with self.sessions() as session:
             interrupted = fail_interrupted_jobs(session)
-        logger.info("worker ready: models=%s, interrupted jobs=%d",
-                    sorted(self.releases), interrupted)
+        backfilled = self.backfill_features()
+        logger.info("worker ready: models=%s, interrupted jobs=%d, feature files backfilled=%d",
+                    sorted(self.releases), interrupted, backfilled)
         next_maintenance = 0.0
         while True:
             if time.monotonic() >= next_maintenance:

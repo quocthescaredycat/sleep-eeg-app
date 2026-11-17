@@ -112,3 +112,57 @@ def test_transformer_labels_match_published_run(published):
     # Measured: 1 of 952, with a top-two margin of 2e-4. Only near-ties may flip.
     assert len(disagreements) <= 5
     assert all(margin < 0.01 for margin in disagreements)
+
+
+# --- Against the built similarity library: needs it and the trained checkpoints ---
+
+@pytest.fixture(scope="module")
+def built_library():
+    from app.library import store
+
+    directory = BACKEND / "library"
+    if not (directory / "epochs.csv").is_file():
+        pytest.skip("the similarity library is not built (scripts/build_library.py extract)")
+    releases = load_releases(REAL_CHECKPOINTS)
+    if len(releases) < 2 or not all(release.available and not release.synthetic
+                                    for release in releases.values()):
+        pytest.skip("trained checkpoints are not installed (scripts/checkpoints.py package)")
+    manifest = store.load_manifest(directory)
+    if manifest.get("synthetic"):
+        pytest.skip("backend/library holds a synthetic library")
+    epochs = store.load_epochs(directory)
+    night = {int(index): row for row, (recording, index) in enumerate(
+        zip(epochs["recording"], epochs["epoch_index"], strict=True)) if recording == RECORDING}
+    return directory, manifest, epochs, night, releases
+
+
+@pytest.mark.published
+def test_served_query_features_equal_the_library_vectors_of_the_same_epochs(built_library):
+    """The bundled sample is SC4031 from epoch 980. What the worker saves for it must be the
+    library vectors of those epochs, or a search would compare two different spaces."""
+    from app.library import service, store
+    from app.ml.inference import predict_and_embed
+    from app.ml.signal_features import signal_features
+
+    directory, manifest, epochs, night, releases = built_library
+    prepared = preprocess_recording(SAMPLE_PSG)
+    rows = np.array([night[980 + index] for index in range(prepared.n_epochs)])
+    band_power = signal_features(prepared.epochs)
+    library_signal = np.load(directory / store.SPACES["signal"].file)
+    # Measured 2026-11-17: identical inside the excerpt, at most 0.0024 at its two cut edges.
+    np.testing.assert_allclose(band_power[1:-1], library_signal[rows][1:-1], atol=1e-4)
+
+    def describe(ids):
+        return {row: (str(epochs["recording"][row]), str(epochs["participant"][row]),
+                      int(epochs["epoch_index"][row])) for row in ids}
+
+    assert service.find_library_match(band_power, library_signal, describe) == \
+        service.LibraryMatch(RECORDING, "SC403", 980)
+
+    for space in store.MODEL_SPACES:
+        models = load_ensemble(releases[store.SPACES[space].release])
+        _, features = predict_and_embed(models, prepared.epochs, embed_fold=manifest["fold"])
+        library = np.load(directory / store.SPACES[space].file, mmap_mode="r")[rows]
+        cosine = (features * library).sum(axis=1) / (
+            np.linalg.norm(features, axis=1) * np.linalg.norm(library, axis=1))
+        assert cosine.min() > 0.999, space  # measured: min 0.99945 (Transformer, at the cut)

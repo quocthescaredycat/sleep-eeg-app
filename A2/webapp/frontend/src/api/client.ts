@@ -9,6 +9,11 @@ export type Predictions = components['schemas']['PredictionsPublic']
 export type Metrics = components['schemas']['MetricsPublic']
 export type Epoch = components['schemas']['EpochPublic']
 export type MetricsScope = Metrics['scope']
+export type Library = components['schemas']['LibraryPublic']
+export type SimilaritySpace = components['schemas']['SimilaritySpacePublic']
+export type SpaceName = SimilaritySpace['name']
+export type Similar = components['schemas']['SimilarPublic']
+export type LibraryEpoch = components['schemas']['LibraryEpochWaveform']
 
 export const api = createClient<paths>({ baseUrl: '/' })
 

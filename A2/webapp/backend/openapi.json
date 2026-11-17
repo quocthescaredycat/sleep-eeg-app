@@ -121,6 +121,24 @@
         "title": "ClassMetrics",
         "type": "object"
       },
+      "Consensus": {
+        "properties": {
+          "accuracy": {
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "coverage": {
+            "title": "Coverage",
+            "type": "number"
+          }
+        },
+        "required": [
+          "coverage",
+          "accuracy"
+        ],
+        "title": "Consensus",
+        "type": "object"
+      },
       "EpochChannel": {
         "properties": {
           "label": {
@@ -360,6 +378,317 @@
           "finished_at"
         ],
         "title": "JobPublic",
+        "type": "object"
+      },
+      "LibraryEpochPublic": {
+        "description": "One expert-scored library epoch. Model stages are out of fold: predicted by a fold\nthat did not train on the epoch's participant (the five-fold mean for test ones).",
+        "properties": {
+          "attnsleep_confidence": {
+            "title": "Attnsleep Confidence",
+            "type": "number"
+          },
+          "attnsleep_stage": {
+            "title": "Attnsleep Stage",
+            "type": "integer"
+          },
+          "epoch_index": {
+            "title": "Epoch Index",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "in_embedding_training": {
+            "description": "The fold that produced the model-space vectors trained on this epoch.",
+            "title": "In Embedding Training",
+            "type": "boolean"
+          },
+          "onset_seconds": {
+            "title": "Onset Seconds",
+            "type": "integer"
+          },
+          "participant": {
+            "title": "Participant",
+            "type": "string"
+          },
+          "recording": {
+            "title": "Recording",
+            "type": "string"
+          },
+          "split": {
+            "enum": [
+              "development",
+              "test"
+            ],
+            "title": "Split",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "integer"
+          },
+          "transformer_confidence": {
+            "title": "Transformer Confidence",
+            "type": "number"
+          },
+          "transformer_stage": {
+            "title": "Transformer Stage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "participant",
+          "recording",
+          "epoch_index",
+          "onset_seconds",
+          "stage",
+          "split",
+          "in_embedding_training",
+          "transformer_stage",
+          "transformer_confidence",
+          "attnsleep_stage",
+          "attnsleep_confidence"
+        ],
+        "title": "LibraryEpochPublic",
+        "type": "object"
+      },
+      "LibraryEpochWaveform": {
+        "properties": {
+          "attnsleep_confidence": {
+            "title": "Attnsleep Confidence",
+            "type": "number"
+          },
+          "attnsleep_stage": {
+            "title": "Attnsleep Stage",
+            "type": "integer"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/EpochChannel"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "epoch_index": {
+            "title": "Epoch Index",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "in_embedding_training": {
+            "description": "The fold that produced the model-space vectors trained on this epoch.",
+            "title": "In Embedding Training",
+            "type": "boolean"
+          },
+          "onset_seconds": {
+            "title": "Onset Seconds",
+            "type": "integer"
+          },
+          "participant": {
+            "title": "Participant",
+            "type": "string"
+          },
+          "recording": {
+            "title": "Recording",
+            "type": "string"
+          },
+          "sampling_rate": {
+            "title": "Sampling Rate",
+            "type": "number"
+          },
+          "split": {
+            "enum": [
+              "development",
+              "test"
+            ],
+            "title": "Split",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "integer"
+          },
+          "transformer_confidence": {
+            "title": "Transformer Confidence",
+            "type": "number"
+          },
+          "transformer_stage": {
+            "title": "Transformer Stage",
+            "type": "integer"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "participant",
+          "recording",
+          "epoch_index",
+          "onset_seconds",
+          "stage",
+          "split",
+          "in_embedding_training",
+          "transformer_stage",
+          "transformer_confidence",
+          "attnsleep_stage",
+          "attnsleep_confidence",
+          "sampling_rate",
+          "unit",
+          "channels"
+        ],
+        "title": "LibraryEpochWaveform",
+        "type": "object"
+      },
+      "LibraryMatchPublic": {
+        "properties": {
+          "epoch_offset": {
+            "title": "Epoch Offset",
+            "type": "integer"
+          },
+          "participant": {
+            "title": "Participant",
+            "type": "string"
+          },
+          "recording": {
+            "title": "Recording",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recording",
+          "participant",
+          "epoch_offset"
+        ],
+        "title": "LibraryMatchPublic",
+        "type": "object"
+      },
+      "LibraryPublic": {
+        "description": "The reference library, and whether this server can search it.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "fold": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fold"
+          },
+          "library_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Library Id"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "n_epochs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Epochs"
+          },
+          "n_participants": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Participants"
+          },
+          "n_recordings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N Recordings"
+          },
+          "spaces": {
+            "items": {
+              "$ref": "#/components/schemas/SimilaritySpacePublic"
+            },
+            "title": "Spaces",
+            "type": "array"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "unanimous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Consensus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Library evaluation: queries where every space's vote agrees."
+          }
+        },
+        "required": [
+          "available",
+          "code",
+          "message",
+          "library_id",
+          "synthetic",
+          "fold",
+          "n_epochs",
+          "n_participants",
+          "n_recordings",
+          "spaces",
+          "unanimous"
+        ],
+        "title": "LibraryPublic",
         "type": "object"
       },
       "MetricsPublic": {
@@ -695,6 +1024,283 @@
         "title": "RecordingsPublic",
         "type": "object"
       },
+      "SimilarNeighbour": {
+        "properties": {
+          "epoch": {
+            "$ref": "#/components/schemas/LibraryEpochPublic"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rank",
+          "score",
+          "epoch"
+        ],
+        "title": "SimilarNeighbour",
+        "type": "object"
+      },
+      "SimilarPublic": {
+        "properties": {
+          "epoch_index": {
+            "title": "Epoch Index",
+            "type": "integer"
+          },
+          "excluded_participant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Participant"
+          },
+          "k": {
+            "title": "K",
+            "type": "integer"
+          },
+          "library_id": {
+            "title": "Library Id",
+            "type": "string"
+          },
+          "library_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LibraryMatchPublic"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when this recording is itself a library night."
+          },
+          "neighbours": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarNeighbour"
+            },
+            "title": "Neighbours",
+            "type": "array"
+          },
+          "recording_id": {
+            "format": "uuid",
+            "title": "Recording Id",
+            "type": "string"
+          },
+          "score": {
+            "description": "cosine_similarity: higher is closer; euclidean_distance: lower is closer.",
+            "enum": [
+              "cosine_similarity",
+              "euclidean_distance"
+            ],
+            "title": "Score",
+            "type": "string"
+          },
+          "space": {
+            "enum": [
+              "transformer",
+              "attnsleep",
+              "signal"
+            ],
+            "title": "Space",
+            "type": "string"
+          },
+          "vote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Vote"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Majority expert stage of the neighbours; ties go to the nearest."
+          }
+        },
+        "required": [
+          "recording_id",
+          "epoch_index",
+          "space",
+          "k",
+          "score",
+          "library_id",
+          "library_match",
+          "excluded_participant",
+          "neighbours",
+          "vote"
+        ],
+        "title": "SimilarPublic",
+        "type": "object"
+      },
+      "SimilaritySpacePublic": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "evaluation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpaceEvaluation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Model whose features span the space; null for the model-free signal space.",
+            "title": "Model Id"
+          },
+          "name": {
+            "enum": [
+              "transformer",
+              "attnsleep",
+              "signal"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "score": {
+            "enum": [
+              "cosine_similarity",
+              "euclidean_distance"
+            ],
+            "title": "Score",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "model_id",
+          "score",
+          "available",
+          "reason",
+          "evaluation"
+        ],
+        "title": "SimilaritySpacePublic",
+        "type": "object"
+      },
+      "SpaceDisagreement": {
+        "description": "Library evaluation, on query epochs where the two fold models disagree.",
+        "properties": {
+          "matches_expert": {
+            "title": "Matches Expert",
+            "type": "number"
+          },
+          "n_epochs": {
+            "title": "N Epochs",
+            "type": "integer"
+          },
+          "sides_with": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Model space name -> share of 5-NN votes equal to that model's stage.",
+            "title": "Sides With",
+            "type": "object"
+          }
+        },
+        "required": [
+          "n_epochs",
+          "matches_expert",
+          "sides_with"
+        ],
+        "title": "SpaceDisagreement",
+        "type": "object"
+      },
+      "SpaceEvaluation": {
+        "description": "What ``scripts/evaluate_library.py`` measured for a space on epochs its fold never\ntrained on, neighbours from the query's participant excluded.",
+        "properties": {
+          "disagreement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpaceDisagreement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "k": {
+            "title": "K",
+            "type": "integer"
+          },
+          "n_queries": {
+            "title": "N Queries",
+            "type": "integer"
+          },
+          "precision_at_k": {
+            "title": "Precision At K",
+            "type": "number"
+          },
+          "vote_accuracy": {
+            "title": "Vote Accuracy",
+            "type": "number"
+          },
+          "vote_macro_f1": {
+            "title": "Vote Macro F1",
+            "type": "number"
+          },
+          "vote_precision": {
+            "description": "By stage index: how often a vote for that stage matches the expert.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Vote Precision",
+            "type": "array"
+          }
+        },
+        "required": [
+          "k",
+          "n_queries",
+          "precision_at_k",
+          "vote_accuracy",
+          "vote_macro_f1",
+          "vote_precision",
+          "disagreement"
+        ],
+        "title": "SpaceEvaluation",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -733,6 +1339,24 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "Vote": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stage",
+          "count"
+        ],
+        "title": "Vote",
         "type": "object"
       }
     }
@@ -1011,6 +1635,71 @@
         ]
       }
     },
+    "/api/v1/library": {
+      "get": {
+        "description": "The reference library, whether this server can search it, and how each space scored\nin the library evaluation. Always ``200``: ``available`` and ``code`` say what is missing.",
+        "operationId": "library-read_library",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Library",
+        "tags": [
+          "library"
+        ]
+      }
+    },
+    "/api/v1/library/epochs/{library_epoch_id}": {
+      "get": {
+        "description": "One library epoch: expert stage, out-of-fold model stages and 30 s of filtered EEG at\n100 Hz in microvolts, exactly as the models saw it.",
+        "operationId": "library-read_library_epoch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "library_epoch_id",
+            "required": true,
+            "schema": {
+              "title": "Library Epoch Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryEpochWaveform"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Library Epoch",
+        "tags": [
+          "library"
+        ]
+      }
+    },
     "/api/v1/models": {
       "get": {
         "description": "Model releases that can be run, with the metrics published in the A2 report.",
@@ -1230,6 +1919,85 @@
         "summary": "Read Epoch",
         "tags": [
           "recordings"
+        ]
+      }
+    },
+    "/api/v1/recordings/{recording_id}/epochs/{epoch_index}/similar": {
+      "get": {
+        "description": "The ``k`` library epochs nearest to one epoch of this recording, in one space.\n\nA model space compares the features that model's fold saved with this recording's\nresult, so the model must have been run here; the signal space needs only the\npreprocessing done by the first job. When the recording is itself a library night,\nneighbours from its participant are left out: they would include the epoch itself.",
+        "operationId": "library-find_similar",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "recording_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Recording Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "epoch_index",
+            "required": true,
+            "schema": {
+              "title": "Epoch Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "space",
+            "required": true,
+            "schema": {
+              "enum": [
+                "transformer",
+                "attnsleep",
+                "signal"
+              ],
+              "title": "Space",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "k",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "K",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarPublic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Find Similar",
+        "tags": [
+          "library"
         ]
       }
     }

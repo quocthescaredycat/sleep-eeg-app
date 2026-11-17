@@ -6,6 +6,8 @@ import uuid
 from pathlib import Path
 from typing import BinaryIO
 
+import numpy as np
+
 from ..core.config import get_settings
 
 CHUNK = 1 << 20
@@ -29,6 +31,24 @@ def hypnogram_path(recording_id: uuid.UUID) -> Path:
 
 def waveform_path(recording_id: uuid.UUID) -> Path:
     return recording_dir(recording_id) / "display_100hz.npy"
+
+
+def signal_features_path(recording_id: uuid.UUID) -> Path:
+    """``(n_epochs, 12)`` log band power: the model-free similarity space."""
+    return recording_dir(recording_id) / "signal_features.npy"
+
+
+def embeddings_path(recording_id: uuid.UUID, model_id: str, fold: int) -> Path:
+    """``(n_epochs, d)`` features of one model fold, saved with the job's predictions."""
+    return recording_dir(recording_id) / f"features_{model_id}_fold{fold}.npy"
+
+
+def save_array(path: Path, array: np.ndarray) -> None:
+    """Write atomically, so a reader never sees half a file. The directory must exist: a
+    recording deleted meanwhile is not recreated."""
+    partial = path.with_name(f"{path.stem}.partial.npy")
+    np.save(partial, array)
+    partial.replace(path)
 
 
 def temp_dir() -> Path:

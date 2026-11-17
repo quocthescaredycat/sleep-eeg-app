@@ -87,14 +87,25 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: A2/webapp/backend/uv.lock
-      - name: Generate synthetic checkpoints
+      - name: Generate synthetic checkpoints and a synthetic similarity library
         working-directory: A2/webapp/backend
         run: |
           uv sync --frozen
           uv run python scripts/checkpoints.py synthetic --out "$RUNNER_TEMP/checkpoints"
+          uv run python scripts/build_library.py synthetic --dir "$RUNNER_TEMP/library" \
+            --checkpoints "$RUNNER_TEMP/checkpoints"
           echo "CHECKPOINTS_DIR=$RUNNER_TEMP/checkpoints" >> "$GITHUB_ENV"
+          echo "LIBRARY_DIR=$RUNNER_TEMP/library" >> "$GITHUB_ENV"
       - name: Start the stack
-        run: docker compose up --build --wait
+        run: docker compose --profile similarity up --build --wait
+      # The API applied the migrations on start; index and load the library from the host.
+      - name: Index and evaluate the library
+        working-directory: A2/webapp/backend
+        run: |
+          uv run python scripts/build_library.py index --dir "$LIBRARY_DIR"
+          uv run python scripts/build_library.py load-db --dir "$LIBRARY_DIR"
+          uv run python scripts/build_library.py verify --dir "$LIBRARY_DIR"
+          uv run python scripts/evaluate_library.py --dir "$LIBRARY_DIR"
       - uses: actions/setup-node@v4
         with:
           node-version: 24
