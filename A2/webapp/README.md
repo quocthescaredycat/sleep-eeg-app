@@ -53,6 +53,12 @@ See [the Mac demo guide](docs/mac-demo.md) for an isolated app on port 8081 and 
 public Cloudflare Quick Tunnel. No domain is needed. The demo uses separate
 volumes from development; optional email OTP is available through cloudflared.
 
+## Run on a server
+
+See [the VPS guide](docs/vps.md) for an always-on server shared with other projects:
+[`compose.vps.yaml`](compose.vps.yaml) publishes no ports, puts the site behind HTTP Basic
+Auth, caps memory and CPU, and reaches the internet through one shared Cloudflare Tunnel.
+
 ## Checkpoints
 
 The ten `.pt` files (about 22 MB) are **not** in Git. Each release directory under
@@ -278,6 +284,8 @@ starts is marked `failed` with `INTERRUPTED` and can be run again.
 ```text
 webapp/
 ├── compose.yaml
+├── compose.vps.yaml           server override (docs/vps.md); .env.vps.example
+├── compose.demo.yaml          Mac demo (docs/mac-demo.md)
 ├── backend/
 │   ├── app/
 │   │   ├── main.py            FastAPI app
@@ -296,6 +304,7 @@ webapp/
 │   ├── scripts/               checkpoints.py, build_library.py, evaluate_library.py, …
 │   └── tests/                 unit/, parity/, api/
 ├── frontend/
+│   ├── nginx.conf             gateway; basic-auth.sh turns on Basic Auth at start-up
 │   ├── src/                   api/, pages/, components/, charts/, lib/
 │   └── tests/                 e2e/*.spec.ts, pages/ (page objects)
 └── data/                      created at runtime, git-ignored

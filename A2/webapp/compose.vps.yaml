@@ -1,0 +1,69 @@
+# Always-on server shared with other projects (docs/vps.md):
+#   docker compose -f compose.yaml -f compose.vps.yaml --profile similarity up -d --build --wait
+# Needs Docker Compose 2.24.4+ (!reset) and the shared network: docker network create edge
+#
+# - Nothing is published on the host. Docker-published ports bypass ufw, and other projects
+#   would collide on 8080 and 5432. Cloudflare Tunnel reaches the gateway over "edge".
+# - Only the web gateway joins "edge", as sleep-eeg-web. The api, worker, database and
+#   Qdrant stay on this project's private network.
+# - Basic Auth and a database password are required: there are no defaults.
+# - Memory and CPU caps keep this app from starving the other projects on the server.
+
+x-database: &database
+  DATABASE_URL: postgresql+psycopg://sleep:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/sleep
+
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports: !reset []
+    deploy:
+      resources:
+        limits: { memory: 1g }
+
+  api:
+    environment:
+      <<: *database
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 1536m }
+
+  worker:
+    environment:
+      <<: *database
+      TORCH_THREADS: ${TORCH_THREADS:-2}
+    deploy:
+      resources:
+        # One inference job uses TORCH_THREADS cores: cap the worker at the same number.
+        limits: { cpus: "${TORCH_THREADS:-2}", memory: 3g }
+
+  web:
+    ports: !reset []
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?set BASIC_AUTH_USER in .env}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:?set BASIC_AUTH_PASSWORD in .env}
+    networks:
+      default: {}
+      edge:
+        # The Cloudflare Tunnel hostname points at http://sleep-eeg-web:80. Every project's
+        # gateway needs its own alias: two services named "web" on "edge" share that name.
+        aliases: [sleep-eeg-web]
+    healthcheck:
+      # nginx and the API together; /api/health is the one path without Basic Auth.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits: { memory: 128m }
+
+  qdrant:
+    ports: !reset []
+    deploy:
+      resources:
+        limits: { memory: 2g }
+
+networks:
+  edge:
+    external: true

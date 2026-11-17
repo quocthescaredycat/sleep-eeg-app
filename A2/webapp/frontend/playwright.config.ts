@@ -17,6 +17,10 @@ export default defineConfig({
     : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
+    // Basic Auth of a compose.vps.yaml stack (docs/vps.md): E2E_USER=... E2E_PASSWORD=...
+    httpCredentials: process.env.E2E_USER
+      ? { username: process.env.E2E_USER, password: process.env.E2E_PASSWORD ?? '' }
+      : undefined,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

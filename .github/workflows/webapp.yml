@@ -96,6 +96,10 @@ jobs:
             --checkpoints "$RUNNER_TEMP/checkpoints"
           echo "CHECKPOINTS_DIR=$RUNNER_TEMP/checkpoints" >> "$GITHUB_ENV"
           echo "LIBRARY_DIR=$RUNNER_TEMP/library" >> "$GITHUB_ENV"
+      - name: Check the server override merges
+        run: >-
+          POSTGRES_PASSWORD=ci BASIC_AUTH_USER=ci BASIC_AUTH_PASSWORD=ci
+          docker compose -f compose.yaml -f compose.vps.yaml --profile similarity config --quiet
       - name: Start the stack
         run: docker compose --profile similarity up --build --wait
       # The API applied the migrations on start; index and load the library from the host.
