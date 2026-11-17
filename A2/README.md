@@ -1,5 +1,66 @@
 # Assignment 2: five-stage sleep classification from EEG
 
+## Sleep EEG App — inference and top-5 similarity search
+
+The browser application is implemented in **[`webapp/`](webapp/README.md)** inside
+this `A2/` folder. It uses trained Transformer and AttnSleep checkpoints for inference;
+retraining the research notebooks is not required when compatible checkpoints are available.
+
+Upload a Sleep-EDF PSG, optionally attach its expert hypnogram, run either model and
+inspect the predicted hypnogram, 30-second EEG epochs, probabilities, model disagreements
+and evaluation metrics. Results can be exported as CSV or JSON.
+
+**Find similar** retrieves the **top 5 reference epochs** for any selected epoch. Choose
+between Transformer embeddings (128 dimensions), AttnSleep embeddings (2,400 dimensions)
+and model-free signal features (12 log band powers). The current library contains
+195,469 expert-scored epochs from 78 participants, with model embeddings from fold 5.
+Each neighbour displays its waveform, expert label, out-of-fold model predictions,
+similarity score and whether the embedding encoder trained on it. The panel compares
+votes across the three spaces and shows evaluation context for model-related bias.
+Recognized library recordings exclude their own participant from retrieval.
+
+![Find similar: five reference EEG epochs, expert stages and cross-space votes](webapp/docs/similar.png)
+
+Model-based retrieval can reinforce a model's own prediction; compare the other spaces
+and the reference waveforms. The full reference library includes development and test
+participants, so this feature's library evaluation is distinct from the research report's
+held-out classification results. The signal space is model-free, rather than a guarantee
+of clinical relevance or correctness.
+
+```text
+A2/
+├── webapp/
+│   ├── frontend/          React/TypeScript interface and Playwright tests
+│   ├── backend/
+│   │   ├── app/           FastAPI routes, worker, ML models and similarity search
+│   │   ├── alembic/       PostgreSQL migrations
+│   │   ├── scripts/       Checkpoint packaging and reference-library preparation
+│   │   ├── tests/         Unit, API and research-parity tests
+│   │   ├── checkpoints/   Release manifests; trained weights installed separately
+│   │   └── library/       Reference files installed/generated separately
+│   ├── docs/              Screenshots and Mac demo guide
+│   └── compose.yaml       Web gateway, API, worker, PostgreSQL and optional Qdrant
+├── configs/               Research training configurations
+├── sleep_exploration/     EDA and participant folds
+├── runs/                  Research metrics and run provenance
+├── preprocessing.py       Research waveform preparation
+└── training.ipynb          Shared research training/evaluation notebook
+```
+
+PostgreSQL stores recording metadata, jobs, predictions and reference-epoch metadata.
+Files store uploaded EDFs, display waveforms and query embeddings. Qdrant indexes the
+fixed reference library; user uploads do not automatically become reference points.
+
+For application setup, install the trained checkpoints and follow the
+[web app quick start](webapp/README.md#quick-start). Top-5 search additionally needs the
+[reference-library build and Qdrant setup](webapp/README.md#similar-epochs-research).
+For local development, use the backend's `uv.lock` and the frontend's `package-lock.json`,
+as described in [Development](webapp/README.md#development); the research requirements
+below serve the notebook pipeline. For sharing from a Mac, see the
+[demo guide](webapp/docs/mac-demo.md).
+
+## Research workflow
+
 **Workflow:** `python preprocessing.py` → `training.ipynb` → `runs/<model>/<dataset>_final/`.
 One notebook supports Custom CNN, temporal Transformer, AttnSleep and CBraMod through four JSON configurations. The current notebook selects `AttnSleep.json`.
 
@@ -8,8 +69,8 @@ The completed AttnSleep run is now in [runs/AttnSleep/sleep_waveform_final](runs
 ## 1. Start from a fresh clone
 
 ```bash
-git clone --depth 1 https://github.com/quocthescaredycat/DL-ASS.git
-cd DL-ASS/A2
+git clone --depth 1 https://github.com/quocthescaredycat/sleep-eeg-app.git
+cd sleep-eeg-app/A2
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt jupyterlab
