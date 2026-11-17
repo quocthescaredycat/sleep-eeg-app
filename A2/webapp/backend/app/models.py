@@ -16,6 +16,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -113,3 +114,31 @@ class Prediction(Base):
     @property
     def probabilities(self) -> list[float]:
         return [self.p_w, self.p_n1, self.p_n2, self.p_n3, self.p_rem]
+
+
+class LibraryEpoch(Base):
+    """One expert-scored Sleep-EDF epoch of the similarity-search reference library.
+
+    ``id`` is the Qdrant point id and the row number in the files under ``LIBRARY_DIR``.
+    Model columns are out-of-fold: the fold that held this participant out (development)
+    or the five-fold ensemble (test), never a model that trained on the epoch.
+    ``in_embedding_training`` is true when the fold that produced the search vectors did.
+    """
+
+    __tablename__ = "library_epochs"
+    __table_args__ = (
+        UniqueConstraint("recording", "epoch_index", name="uq_library_epochs_recording_epoch"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    participant: Mapped[str] = mapped_column(String(16))
+    recording: Mapped[str] = mapped_column(String(16))
+    epoch_index: Mapped[int] = mapped_column(Integer)
+    stage: Mapped[int] = mapped_column(SmallInteger)
+    split: Mapped[str] = mapped_column(String(16))
+    validation_fold: Mapped[int | None] = mapped_column(SmallInteger)
+    in_embedding_training: Mapped[bool] = mapped_column(Boolean)
+    transformer_stage: Mapped[int] = mapped_column(SmallInteger)
+    transformer_confidence: Mapped[float] = mapped_column(Float)
+    attnsleep_stage: Mapped[int] = mapped_column(SmallInteger)
+    attnsleep_confidence: Mapped[float] = mapped_column(Float)

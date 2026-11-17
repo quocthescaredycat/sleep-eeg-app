@@ -1,0 +1,145 @@
+{
+  "library_id": "a2-sleep-edf-v1",
+  "created_at": "2026-11-16T19:31:02+00:00",
+  "fold": 5,
+  "n_epochs": 195469,
+  "n_participants": 78,
+  "n_recordings": 153,
+  "class_counts": {
+    "W": 65941,
+    "N1": 21522,
+    "N2": 69132,
+    "N3": 13039,
+    "REM": 25835
+  },
+  "split_counts": {
+    "development": 170537,
+    "test": 24932
+  },
+  "unseen_by_embedding_fold": 60462,
+  "preprocessing": "a2-waveform-v1",
+  "signal_features": {
+    "version": "log-band-power-v1",
+    "names": [
+      "EEG Fpz-Cz:slow",
+      "EEG Fpz-Cz:delta",
+      "EEG Fpz-Cz:theta",
+      "EEG Fpz-Cz:alpha",
+      "EEG Fpz-Cz:sigma",
+      "EEG Fpz-Cz:beta",
+      "EEG Pz-Oz:slow",
+      "EEG Pz-Oz:delta",
+      "EEG Pz-Oz:theta",
+      "EEG Pz-Oz:alpha",
+      "EEG Pz-Oz:sigma",
+      "EEG Pz-Oz:beta"
+    ],
+    "mean": [
+      1.987592,
+      1.485859,
+      1.173984,
+      0.775199,
+      0.420049,
+      0.677351,
+      1.358053,
+      0.879353,
+      0.787472,
+      0.521104,
+      0.059574,
+      0.264539
+    ],
+    "std": [
+      0.531157,
+      0.49141,
+      0.415489,
+      0.411024,
+      0.467631,
+      0.551671,
+      0.531213,
+      0.440175,
+      0.422776,
+      0.460473,
+      0.471666,
+      0.562895
+    ]
+  },
+  "spaces": {
+    "transformer": {
+      "dim": 128,
+      "distance": "Cosine",
+      "release": "transformer-a2-v1",
+      "file": "vectors_transformer.npy"
+    },
+    "attnsleep": {
+      "dim": 2400,
+      "distance": "Cosine",
+      "release": "attnsleep-a2-v1",
+      "file": "vectors_attnsleep.npy"
+    },
+    "signal": {
+      "dim": 12,
+      "distance": "Euclid",
+      "release": null,
+      "file": "features_signal.npy"
+    }
+  },
+  "releases": {
+    "transformer-a2-v1": {
+      "embedding_fold_file": "fold_5.pt",
+      "folds_sha256": [
+        "4256bd20dfa32d61a9f7760ed2968e9148db3f4b5c4ceef7a388dcb62013911a",
+        "2b996a9ca9a998f98a165e958e91995659c3bbfca0002d0a155551a3a4de52f3",
+        "86c10c14480d98a3103fdf46383c517ddb0e830fdd6ce7ab8916115a22496f15",
+        "f3c6dbeda17dcb0ea6fdd1c81893e0761021078dd21345bf3b5e72b12da0696a",
+        "b2ec8b7bdf77e3b66ad85084dc3b74386bbacae5044794f5f15e7fc1f9d6b2e0"
+      ]
+    },
+    "attnsleep-a2-v1": {
+      "embedding_fold_file": "fold_5.pt",
+      "folds_sha256": [
+        "8f98f87cfeda9ac912c70ad1c4a12af93ec9ca2def512047c01507df4395d0be",
+        "e7586ba08aa0bee97c56aafaf08643c42647ea16bddbaa84cfb8d800bca31eb5",
+        "0f721bd2ee9482d6827ee6de154dd4391d689f36581cc52aec3406276890e746",
+        "a55aa71a7f11da3e643296a2f7a868613b897bd03101907e5ddc3554be521ba1",
+        "a6cbaba92ad7205de13b12b4489e1d86912c727bff35bf04e716a99ad9459216"
+      ]
+    }
+  },
+  "labels": {
+    "file": "sleep_waveform.csv",
+    "sha256": "4e0994a674fcc89e616ca7ae7277565b94b87f0f1ccd04919c6b623267ca8732"
+  },
+  "files": {
+    "epochs.csv": {
+      "bytes": 7911238,
+      "sha256": "4ff090357ea798d807c95102dfaa355aedb1616d44b3712262c4a9756c281f76"
+    },
+    "probabilities.npz": {
+      "bytes": 39094326,
+      "sha256": "6f5070d0954c3ec8a0d5f89ced32a4a6c4492016bc130517e525779ff9b5d6c7"
+    },
+    "waveforms_100hz.npy": {
+      "bytes": 2345628128,
+      "sha256": "dd5e1040e6b7059bc129a5b77c3d84aa4dc1aef4ea7c857eb41abbccbd5c2d4b"
+    },
+    "features_signal.npy": {
+      "bytes": 9382640,
+      "sha256": "9aec90b3f3b1e2c8d293a0f449ec1b42620c4387cf4146d60baf71cac0730095"
+    },
+    "vectors_transformer.npy": {
+      "bytes": 100080256,
+      "sha256": "c97b7961670f975a1d60872f0dff3de69a0eb1f238a67540a03ba325cffe0f9e"
+    },
+    "vectors_attnsleep.npy": {
+      "bytes": 1876502528,
+      "sha256": "f0364159c06453c7928706b716073c1ea93a3a90120c2c6ae6082ba92b3b9abc"
+    }
+  },
+  "build": {
+    "processes": 10,
+    "extract_seconds": 3146.5,
+    "torch": "2.15.0",
+    "mne": "1.13.2",
+    "numpy": "2.5.4"
+  }
+}

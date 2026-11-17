@@ -13,6 +13,7 @@ dependencies = [
     "scipy>=1.11",
     "mne>=1.6,<2",
     "torch>=2.2",
+    "qdrant-client>=1.20",
 ]
 
 [dependency-groups]

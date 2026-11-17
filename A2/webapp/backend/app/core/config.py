@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     BATCH_SIZE: int = 64
     WORKER_POLL_SECONDS: float = 1.0
 
+    # Similarity search: library files (scripts/build_library.py) and their Qdrant index.
+    LIBRARY_DIR: Path = BACKEND_DIR / "library"
+    QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_GRPC_PORT: int = 6334
+
 
 @lru_cache
 def get_settings() -> Settings:

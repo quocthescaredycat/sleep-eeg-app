@@ -45,6 +45,12 @@ docker compose up --build
 Open <http://localhost:8080>. A one-hour sample recording is preloaded: open it and press
 **Run Transformer**. The interactive API reference is at <http://localhost:8080/api/docs>.
 
+## Share from a Mac without renting a server
+
+See [the Mac demo guide](docs/mac-demo.md) for an isolated app on port 8081 and a
+public Cloudflare Quick Tunnel. No domain is needed. The demo uses separate
+volumes from development; optional email OTP is available through cloudflared.
+
 ## Checkpoints
 
 The ten `.pt` files (about 22 MB) are **not** in Git. Each release directory under
@@ -105,6 +111,56 @@ The last two rows need the trained checkpoints and the original night:
 ```bash
 SLEEP_EDF_DIR=/path/to/sleep-cassette uv run pytest -m published
 ```
+
+## Similarity library (research)
+
+Groundwork for "find similar epochs": a reference library of every expert-scored epoch the
+A2 models were evaluated on (195,469 epochs, 153 Sleep-cassette nights, 78 participants),
+searchable in three spaces so that a researcher can check retrieval against the model that
+shaped it:
+
+| Space | Vector | Shaped by |
+|---|---|---|
+| `transformer` | 128-d normalised CLS token, fold 5 | Transformer training labels |
+| `attnsleep` | 2400-d flattened TCE output (`fc` input), fold 5 | AttnSleep training labels |
+| `signal` | 12 log band powers (0.5–30 Hz, both channels), z-scored | nothing: model-free |
+
+Five folds are five unrelated feature spaces, so one fold (5) spans both model spaces. Qdrant
+holds the vectors as named vectors of one point per epoch (AttnSleep on disk, int8 in RAM) and
+returns ids only; waveforms, expert stages and out-of-fold predictions are looked up by id in
+the library files and the `library_epochs` table. Searches exclude the query's participant.
+
+```bash
+cd A2/webapp
+docker compose --profile similarity up -d db qdrant
+cd backend
+uv run alembic upgrade head
+# Runs the serving pipeline on every night and stops unless it reproduces the A2 label file.
+uv run python scripts/build_library.py extract \
+    --edf-dir /path/to/sleep-cassette --labels /path/to/A2/dataset/sleep_waveform.csv
+uv run python scripts/build_library.py index      # Qdrant collection a2-sleep-edf-v1-fold5
+uv run python scripts/build_library.py load-db    # library_epochs table
+uv run python scripts/build_library.py verify     # files, Qdrant and PostgreSQL agree
+uv run python scripts/evaluate_library.py         # Phase 2 -> backend/library/library_eval.json
+```
+
+The files (about 4.1 GB) are written to `backend/library/` and ignored by Git, except
+`manifest.json` (provenance, hashes, signal statistics) and `library_eval.json`.
+`evaluate_library.py` queries with the 60,462 epochs fold 5 never trained on and reports,
+per space, precision@5 and a 5-NN vote scored against the expert stage, and, on epochs where
+the two models disagree, which model each space's vote sides with.
+
+| Space | Precision@5 | 5-NN vote accuracy / macro-F1 | On the 8,330 fold-5 disagreements: sides with Transformer / AttnSleep |
+|---|---|---|---|
+| `transformer` | 0.757 | 0.791 / 0.720 | 65% / 25% |
+| `attnsleep` | 0.738 | 0.781 / 0.707 | 27% / 61% |
+| `signal` | 0.686 | 0.729 / 0.642 | 40% / 38% |
+
+For comparison, the fold-5 classifiers themselves score 0.803 / 0.750 (Transformer) and
+0.798 / 0.749 (AttnSleep) on the same queries. Each model space mostly confirms its own model
+when the two disagree, so retrieval in a model space is not independent evidence; the
+signal space is neutral. When all three votes agree (69% of queries) they match the expert on
+91%. HNSW recall@5 against exact search is 0.998–1.000.
 
 ## Development
 
@@ -193,11 +249,13 @@ webapp/
 │   │   ├── core/              settings, database session
 │   │   ├── api/               deps.py, routes/{recordings,jobs,models,health}.py
 │   │   ├── services/          EDF validation, storage, metrics, exports
-│   │   └── ml/                preprocessing, inference, registry, CLI, networks/
+│   │   ├── library/           similarity library: files + Qdrant index, retrieval metrics
+│   │   └── ml/                preprocessing, inference, embeddings, signal features, networks/
 │   ├── alembic/               migrations
 │   ├── checkpoints/           manifests (committed) and fold_*.pt (ignored)
+│   ├── library/               similarity library files (ignored) and its manifest/evaluation
 │   ├── samples/               one-hour excerpt used as demo and test fixture
-│   ├── scripts/               checkpoints.py, export_openapi.py, make_sample.py
+│   ├── scripts/               checkpoints.py, build_library.py, evaluate_library.py, …
 │   └── tests/                 unit/, parity/, api/
 ├── frontend/
 │   ├── src/                   api/, pages/, components/, charts/, lib/

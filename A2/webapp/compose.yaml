@@ -62,6 +62,20 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Similarity-search index. Opt in: docker compose --profile similarity up -d qdrant
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    profiles: [similarity]
+    environment:
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes:
+      - qdrantdata:/qdrant/storage
+    ports:
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+      - "127.0.0.1:${QDRANT_GRPC_PORT:-6334}:6334"
+    restart: unless-stopped
+
 volumes:
   pgdata:
   appdata:
+  qdrantdata:

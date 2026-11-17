@@ -3,7 +3,7 @@
 Module and attribute names are unchanged so the research checkpoints load with
 ``strict=True``. Only the attention-recording branch, unused at inference, is removed.
 Input: ``[B, in_channels, 30, 200]`` (30 one-second patches at 200 Hz, microvolts / 100).
-Output: ``[B, num_classes]`` logits.
+Output: ``[B, num_classes]`` logits. ``embed`` returns the CLS features the head classifies.
 """
 
 import torch
@@ -104,8 +104,15 @@ class Transformer(nn.Module):
         self.norm = nn.LayerNorm(emb_dim)
         self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(emb_dim, num_classes))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def embed(self, x: torch.Tensor) -> torch.Tensor:
+        """The normalised CLS token, ``[B, emb_dim]``: everything the classifier head sees."""
         x = self.patch_embed(x)
         for layer in self.encoder:
             x = layer(x)
-        return self.head(self.norm(x[:, 0]))  # CLS token only
+        return self.norm(x[:, 0])
+
+    def classify(self, features: torch.Tensor) -> torch.Tensor:
+        return self.head(features)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.classify(self.embed(x))

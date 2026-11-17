@@ -1,0 +1,18 @@
+# Isolated public demo: keep its recordings, database and images separate from development.
+# Requires Docker Compose 2.24.4+ for !override.
+name: sleep-eeg-demo
+
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:${DEMO_DB_PORT:-5433}:5432"
+
+  api:
+    image: sleep-eeg-demo-backend
+
+  worker:
+    image: sleep-eeg-demo-backend
+
+  web:
+    ports: !override
+      - "127.0.0.1:${DEMO_WEB_PORT:-8081}:80"

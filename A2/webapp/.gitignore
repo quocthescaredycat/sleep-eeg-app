@@ -6,6 +6,12 @@ data/
 backend/checkpoints/**/*.pt
 backend/checkpoints/**/*.part
 
+# Similarity library (several GB, scripts/build_library.py): only provenance and the
+# Phase 2 evaluation are committed.
+backend/library/*
+!backend/library/manifest.json
+!backend/library/library_eval.json
+
 # Python
 .venv/
 __pycache__/
