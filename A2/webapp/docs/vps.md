@@ -105,7 +105,8 @@ Every project goes under `/srv/<project>`.
    services:
      cloudflared:
        image: cloudflare/cloudflared:2026.11.0   # pin a release; update deliberately
-       command: tunnel --no-autoupdate run
+       # http2: some VPS providers block outbound UDP, which the default QUIC needs
+       command: tunnel --no-autoupdate --protocol http2 run
        environment:
          TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env}
        networks: [edge]

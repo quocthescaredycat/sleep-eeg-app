@@ -6,9 +6,33 @@ The browser application is implemented in **[`webapp/`](webapp/README.md)** insi
 this `A2/` folder. It uses trained Transformer and AttnSleep checkpoints for inference;
 retraining the research notebooks is not required when compatible checkpoints are available.
 
+**Live demo: <https://quoc.eegsleep.dpdns.org/>**. Log in with username `admin` and
+password `admin`. The demo is shared: every visitor sees the same recordings and can
+upload, run and delete them, and uploads are removed automatically after 30 days. Use the
+bundled sample or public Sleep-EDF files, never personal health data.
+
 Upload a Sleep-EDF PSG, optionally attach its expert hypnogram, run either model and
 inspect the predicted hypnogram, 30-second EEG epochs, probabilities, model disagreements
 and evaluation metrics. Results can be exported as CSV or JSON.
+
+**Why find similar epochs, and why Qdrant.** In the library evaluation (60,462 epochs
+unseen by the fold-5 models), Transformer and AttnSleep disagree on 8,330 epochs, and on
+those neither is reliable: Transformer matches the expert stage 43% of the time, AttnSleep
+40%. The two predictions alone cannot tell a researcher which model to trust, so the app
+shows precedent instead. For the selected epoch it retrieves the 5 most similar of 195,469
+expert-scored Sleep-EDF epochs and shows their waveforms and expert stages beside it. The
+researcher compares the shapes, sees how experts scored epochs that look like this one, and
+judges which model the evidence supports. A model's own feature space tends to agree with
+that model: on the disagreements, the Transformer space sides with Transformer 65% of the
+time and the AttnSleep space with AttnSleep 61%. The app therefore also offers a model-free
+signal mode built from 12 EEG band powers, which sides with neither (40% vs 38%). When all
+three modes give the same majority stage (69% of epochs), it matches the expert 91% of the
+time. The library is stored in Qdrant, a vector database, as one point per epoch with three
+named vectors: Transformer (128 dimensions) and AttnSleep (2,400 dimensions), both compared
+by cosine similarity, and band powers (12 dimensions), compared by Euclidean distance.
+Qdrant's HNSW index finds the top 5 without scanning every epoch and recovers 99.8–100% of
+the exact nearest neighbours. Qdrant returns ids only; PostgreSQL holds each epoch's expert
+stage and metadata, and the waveforms come from the library files.
 
 **Find similar** retrieves the **top 5 reference epochs** for any selected epoch. Choose
 between Transformer embeddings (128 dimensions), AttnSleep embeddings (2,400 dimensions)
@@ -38,8 +62,9 @@ A2/
 │   │   ├── tests/         Unit, API and research-parity tests
 │   │   ├── checkpoints/   Release manifests; trained weights installed separately
 │   │   └── library/       Reference files installed/generated separately
-│   ├── docs/              Screenshots and Mac demo guide
-│   └── compose.yaml       Web gateway, API, worker, PostgreSQL and optional Qdrant
+│   ├── docs/              Screenshots, VPS deployment and Mac demo guides
+│   ├── compose.yaml       Web gateway, API, worker, PostgreSQL and optional Qdrant
+│   └── compose.vps.yaml   Server override used by the live demo
 ├── configs/               Research training configurations
 ├── sleep_exploration/     EDA and participant folds
 ├── runs/                  Research metrics and run provenance
@@ -50,6 +75,16 @@ A2/
 PostgreSQL stores recording metadata, jobs, predictions and reference-epoch metadata.
 Files store uploaded EDFs, display waveforms and query embeddings. Qdrant indexes the
 fixed reference library; user uploads do not automatically become reference points.
+
+**Deployment.** The application is one Docker Compose stack: an Nginx gateway (serves the
+React build, routes `/api` to FastAPI, caps uploads and enforces Basic Auth), the FastAPI
+API, a PyTorch inference worker that takes jobs from PostgreSQL, PostgreSQL itself and
+Qdrant. The live demo runs this stack on an Ubuntu VPS with
+[`compose.vps.yaml`](webapp/compose.vps.yaml). No host ports are published: a Cloudflare
+Tunnel provides HTTPS for the domain, the database and Qdrant stay on a private Docker
+network, and every container has memory and CPU limits so the server can host other
+projects alongside it. GitHub Actions runs the pytest suites
+and the Playwright end-to-end tests against the full stack.
 
 For application setup, install the trained checkpoints and follow the
 [web app quick start](webapp/README.md#quick-start). Top-5 search additionally needs the
